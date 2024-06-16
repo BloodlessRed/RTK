@@ -18,40 +18,39 @@ public class FileStatsApp {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
-        // Prompt user for input
-        System.out.print("Enter the directory path: ");
-        String directoryPath = scanner.nextLine();
-
-        System.out.print("Do you want to search recursively? (yes/no): ");
-        boolean recursive = scanner.nextLine().equalsIgnoreCase("yes");
-
-        int maxDepth = Integer.MAX_VALUE;
-        if (recursive) {
-            System.out.print("Enter the max depth for recursive search: ");
-            maxDepth = Integer.parseInt(scanner.nextLine());
+        // Mandatory parameter: directory path
+        String directoryPath;
+        while (true) {
+            System.out.print("Enter the directory path: ");
+            directoryPath = scanner.nextLine().trim();
+            if (!directoryPath.isEmpty()) {
+                Path path = Paths.get(directoryPath);
+                if (Files.exists(path) && Files.isDirectory(path)) {
+                    break;
+                } else {
+                    System.out.println("Invalid directory path. Please enter a valid path.");
+                }
+            } else {
+                System.out.println("Directory path cannot be empty. Please enter a valid path.");
+            }
         }
 
-        System.out.print("Enter the number of threads to use: ");
-        int threadCount = Integer.parseInt(scanner.nextLine());
+        // Optional parameters with default values
+        boolean recursive = getBooleanInput(scanner, "Do you want to search recursively? (yes/no): ", false);
+        int maxDepth = recursive ? getIntInput(scanner, "Enter the max depth for recursive search (default is Integer.MAX_VALUE): ", Integer.MAX_VALUE) : 1;
+        int threadCount = getIntInput(scanner, "Enter the number of threads to use (default is 1): ", 1);
 
-        System.out.print("Enter file extensions to include (comma separated, or leave blank for all): ");
-        String includeExtInput = scanner.nextLine();
-        List<String> includeExtensions = includeExtInput.isEmpty() ? null : Arrays.asList(includeExtInput.split(","));
-
+        List<String> includeExtensions = getListInput(scanner, "Enter file extensions to include (comma separated, or leave blank for all): ");
         List<String> excludeExtensions = null;
         AtomicReference<List<String>> excludeExtensionsReference = new AtomicReference<>();
-        if (includeExtensions == null){
-            System.out.print("Enter file extensions to exclude (comma separated, or leave blank for none): ");
-            String excludeExtInput = scanner.nextLine();
-            excludeExtensions = excludeExtInput.isEmpty() ? null : Arrays.asList(excludeExtInput.split(","));
+        if (includeExtensions == null || includeExtensions.isEmpty()) {
+            excludeExtensions = getListInput(scanner, "Enter file extensions to exclude (comma separated, or leave blank for none): ");
         }
         excludeExtensionsReference.set(excludeExtensions);
 
-        System.out.print("Do you want to respect .gitignore files? (yes/no): ");
-        boolean gitIgnore = scanner.nextLine().equalsIgnoreCase("yes");
+        boolean gitIgnore = getBooleanInput(scanner, "Do you want to respect .gitignore files? (yes/no): ", false);
 
-        System.out.print("Enter the output format (plain/xml/json): ");
-        String outputFormat = scanner.nextLine();
+        String outputFormat = getStringInput(scanner, "Enter the output format (plain/xml/json, default is plain): ", "plain", Arrays.asList("plain", "xml", "json"));
 
         Path startPath = Paths.get(directoryPath);
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
@@ -111,6 +110,65 @@ public class FileStatsApp {
             System.out.println(result);
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private static boolean getBooleanInput(Scanner scanner, String prompt, boolean defaultValue) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim().toLowerCase();
+            if (input.isEmpty()) {
+                return defaultValue;
+            }
+            switch (input) {
+                case "yes":
+                case "y":
+                    return true;
+                case "no":
+                case "n":
+                    return false;
+                default:
+                    System.out.println("Invalid input. Please enter yes or no.");
+            }
+        }
+    }
+
+    private static int getIntInput(Scanner scanner, String prompt, int defaultValue) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty()) {
+                return defaultValue;
+            }
+            try {
+                return Integer.parseInt(input);
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid number. Please enter a valid integer.");
+            }
+        }
+    }
+
+    private static List<String> getListInput(Scanner scanner, String prompt) {
+        System.out.print(prompt);
+        String input = scanner.nextLine().trim();
+        if (input.isEmpty()) {
+            return null;
+        }
+        return Arrays.asList(input.split(","));
+    }
+
+    private static String getStringInput(Scanner scanner, String prompt, String defaultValue, List<String> validOptions) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim().toLowerCase();
+            if (input.isEmpty()) {
+                return defaultValue;
+            }
+            if (validOptions.contains(input)) {
+                return input;
+            } else {
+                System.out.println("Invalid input. Please enter one of the following options: " + validOptions);
+            }
         }
     }
 }
