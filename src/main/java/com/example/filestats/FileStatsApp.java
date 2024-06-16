@@ -1,5 +1,9 @@
 package com.example.filestats;
 
+import com.example.filestats.utils.FileStatsCollector;
+import com.example.filestats.utils.GitIgnoreParser;
+import com.example.filestats.utils.OutputFormatter;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -59,11 +63,26 @@ public class FileStatsApp {
         ConcurrentHashMap<String, Integer> nonEmptyLines = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, Integer> commentLines = new ConcurrentHashMap<>();
 
+        GitIgnoreParser gitIgnoreParser = null;
+        if (gitIgnore) {
+            try {
+                Path gitIgnoreFilePath = startPath.resolve(".gitignore");
+                if (Files.exists(gitIgnoreFilePath)) {
+                    gitIgnoreParser = new GitIgnoreParser(gitIgnoreFilePath);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        final GitIgnoreParser finalGitIgnoreParser = gitIgnoreParser;
+
         try (Stream<Path> paths = recursive ?
                 Files.walk(startPath, maxDepth) :
                 Files.list(startPath)) {
 
             paths.filter(Files::isRegularFile)
+                    .filter(path -> finalGitIgnoreParser == null || !finalGitIgnoreParser.isIgnored(startPath.relativize(path)))
                     .forEach(path -> executorService.submit(new FileStatsCollector(path, includeExtensions, excludeExtensionsReference.get(), gitIgnore, fileCounts, fileSizes, totalLines, nonEmptyLines, commentLines)));
         } catch (Exception e) {
             e.printStackTrace();
@@ -74,12 +93,24 @@ public class FileStatsApp {
             // Wait for all tasks to finish
         }
 
-        // Output results
-        fileCounts.forEach((ext, count) -> {
-            long size = fileSizes.getOrDefault(ext, 0L);
-            int lines = totalLines.getOrDefault(ext, 0);
-            int nonEmpty = nonEmptyLines.getOrDefault(ext, 0);
-            int comments = commentLines.getOrDefault(ext, 0);
-            System.out.println("Extension: " + ext + ", Count: " + count + ", Total Size (bytes): " + size + ", Total Lines: " + lines + ", Non-Empty Lines: " + nonEmpty + ", Comment Lines: " + comments);
-        });    }
+        // Output results based on the specified format
+        try {
+            String result;
+            switch (outputFormat.toLowerCase()) {
+                case "xml":
+                    result = OutputFormatter.formatXml(fileCounts, fileSizes, totalLines, nonEmptyLines, commentLines);
+                    break;
+                case "json":
+                    result = OutputFormatter.formatJson(fileCounts, fileSizes, totalLines, nonEmptyLines, commentLines);
+                    break;
+                case "plain":
+                default:
+                    result = OutputFormatter.formatPlain(fileCounts, fileSizes, totalLines, nonEmptyLines, commentLines);
+                    break;
+            }
+            System.out.println(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
